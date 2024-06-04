@@ -15,10 +15,6 @@ struct vec3
 {
     float x, y, z;
 };
-struct vec4
-{
-    float x, y, z, w;
-};
 
 struct Vertex
 {
@@ -29,16 +25,62 @@ struct Vertex
 struct Application
 {
     GLShader m_basicProgram;
+    GLuint VAO, VBO, EBO;
 
     void Initialize()
     {
         m_basicProgram.LoadVertexShader("basic.vs.glsl");
         m_basicProgram.LoadFragmentShader("basic.fs.glsl");
         m_basicProgram.Create();
+
+        // Generate and bind the Vertex Array Object
+        glGenVertexArrays(1, &VAO);
+        glBindVertexArray(VAO);
+
+        // Generate and bind the Vertex Buffer Object
+        glGenBuffers(1, &VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+
+        const std::vector<Vertex> triangles =
+            {
+                {{0.0f, 0.5f}, {1.f, 0.f, 0.f}},   // sommet 0
+                {{-0.5f, -0.5f}, {0.f, 1.f, 0.f}}, // sommet 1
+                {{0.5f, -0.5f}, {0.f, 0.f, 1.f}},  // sommet 2
+            };
+        glBufferData(GL_ARRAY_BUFFER, triangles.size() * sizeof(Vertex), triangles.data(), GL_STATIC_DRAW);
+
+        // Generate and bind the Element Buffer Object
+        glGenBuffers(1, &EBO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+
+        const uint16_t indices[] = {0, 1, 2};
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+        uint32_t program = m_basicProgram.GetProgram();
+
+        // Configure the position attribute
+        const int POSITION = glGetAttribLocation(program, "a_position");
+        if (POSITION < 0)
+            std::cout << "erreur de programme";
+        glVertexAttribPointer(POSITION, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, position));
+        glEnableVertexAttribArray(POSITION);
+
+        // Configure the color attribute
+        const int loc_color = glGetAttribLocation(program, "a_color");
+        if (loc_color < 0)
+            std::cout << "erreur de programme";
+        glVertexAttribPointer(loc_color, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, color));
+        glEnableVertexAttribArray(loc_color);
+
+        // Unbind the VAO
+        glBindVertexArray(0);
     }
 
     void Terminate()
     {
+        glDeleteBuffers(1, &VBO);
+        glDeleteBuffers(1, &EBO);
+        glDeleteVertexArrays(1, &VAO);
         m_basicProgram.Destroy();
     }
 
@@ -54,33 +96,14 @@ struct Application
         int timeLocation = glGetUniformLocation(program, "u_Time");
         glUniform1f(timeLocation, static_cast<float>(time));
 
-        const std::vector<Vertex> triangles =
-            {
-                {{0.0f, 0.5f}, {1.f, 0.f, 0.f}},   // sommet 0
-                {{-0.5f, -0.5f}, {0.f, 1.f, 0.f}}, // sommet 1
-                {{0.5f, -0.5f}, {0.f, 0.f, 1.f}},  // sommet 2
-            };
-        // GLuint == uint32_t
-        // GLushort == uint16_t
-        const uint16_t indices[] = {0, 1, 2};
+        // Bind the VAO
+        glBindVertexArray(VAO);
 
-        // {[x, y], [r, g, b]}
-        const int POSITION = glGetAttribLocation(program, "a_position");
-        if (POSITION < 0)
-            std::cout << "erreur de programme";
+        // Draw the triangle using the indices in the EBO
+        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0);
 
-        glVertexAttribPointer(POSITION, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex) /*stride*/, triangles.data());
-        glEnableVertexAttribArray(POSITION);
-
-        const int loc_color = glGetAttribLocation(program, "a_color");
-        if (loc_color < 0)
-            std::cout << "erreur de programme";
-
-        glVertexAttribPointer(loc_color, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex) /*stride*/, &triangles[0].color);
-        glEnableVertexAttribArray(loc_color);
-
-        glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, indices);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // Unbind the VAO
+        glBindVertexArray(0);
     }
 };
 
